@@ -1,0 +1,831 @@
+/* 캐릭터는 픽셀, 인터페이스는 미니멀 (시스템 글꼴, 얇은 선, 부드러운 그림자) */
+
+:root {
+  --font: system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --card: #ffffff;
+  --glass: rgba(255, 255, 255, 0.82);
+  --text: #1d1d1f;
+  --text-2: #6e6e73;
+  --text-3: #a1a1a6;
+  --line: rgba(0, 0, 0, 0.08);
+  --hover: rgba(0, 0, 0, 0.04);
+  --avatar: #f2f2f7;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --busy: #30d158;
+  --wait: #ff453a;
+  --done: #0a84ff;
+  --rest: #c7c7cc;
+  --sleep: #8e8e93;
+}
+
+/* 한자 모양이 언어마다 달라서 글꼴도 언어를 따른다 (shared/i18n.js 의 FONT_FAMILY 와 같게) */
+:root:lang(ja) {
+  --font: system-ui, -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
+}
+:root:lang(zh) {
+  --font: system-ui, -apple-system, 'PingFang SC', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --card: #1e1e20;
+    --glass: rgba(30, 30, 32, 0.82);
+    --text: #f5f5f7;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --line: rgba(255, 255, 255, 0.1);
+    --hover: rgba(255, 255, 255, 0.06);
+    --avatar: #2c2c2e;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --rest: #48484a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font: 12px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+body.preview {
+  background: linear-gradient(160deg, #9fbad6 0%, #c3b4da 55%, #ebc8bd 100%);
+}
+
+body[data-error]::after {
+  content: attr(data-error);
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff0f0;
+  color: #b00;
+}
+
+#desk,
+#boards,
+#stage,
+#fx,
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+#desk {
+  z-index: 0;
+}
+#boards {
+  z-index: 1;
+}
+#stage {
+  z-index: 3;
+}
+#fx {
+  z-index: 4;
+}
+#ui {
+  z-index: 5;
+}
+
+/* ── 미리보기용 가짜 창 ───────────────────────── */
+.fakewin {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(250, 250, 252, 0.94);
+  box-shadow: 0 12px 30px rgba(30, 20, 50, 0.25);
+  pointer-events: auto;
+}
+.fakewin .bar {
+  position: relative;
+  height: 28px;
+  padding-left: 72px;
+  background: #e8e8ee;
+  color: #555;
+  font-size: 12px;
+  line-height: 28px;
+  cursor: grab;
+}
+.fakewin .bar::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 9px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: 16px 0 #febc2e, 32px 0 #28c840;
+}
+.fakewin.sticky {
+  background: #fff6a6;
+}
+.fakewin.sticky .bar {
+  background: #f3e478;
+}
+
+/* ── 캐릭터 ─────────────────────────────────── */
+.buddy {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.buddy .body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.buddy .spr {
+  position: absolute;
+  transform-origin: 50% 100%;
+  pointer-events: auto;
+  cursor: grab;
+}
+.buddy .spr canvas {
+  position: absolute;
+  image-rendering: pixelated;
+}
+.buddy.hover .spr {
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 3px var(--team));
+}
+.buddy.pinged .spr {
+  animation: ping 0.4s 3;
+}
+@keyframes ping {
+  50% {
+    filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--team));
+  }
+}
+.buddy.hidden {
+  opacity: 0;
+}
+.buddy.hidden .spr {
+  pointer-events: none;
+}
+
+.buddy .aura {
+  position: absolute;
+  left: 0;
+  top: -2px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--team);
+  opacity: 0.35;
+}
+
+/* 보드에 붙어 있을 땐 발밑 그림자가 없다 */
+.buddy.at-board .aura {
+  display: none;
+}
+
+/* 이름은 보드 헤더에 있으니 캐릭터 이름표는 마우스를 올렸을 때만 */
+.buddy .tag {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  max-width: 200px;
+  padding: 3px 8px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  background: rgba(29, 29, 31, 0.82);
+  color: #fff;
+  font: 500 11px/1.3 var(--font);
+  white-space: nowrap;
+}
+.buddy.hover .tag,
+.buddy.pinged .tag {
+  display: flex;
+}
+.buddy .tag span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buddy .tag i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--team);
+}
+
+/* 지금 하는 일 말풍선: 위치는 character.js 가 몸 윤곽 바로 위로 잡는다 (꼬리가 왼쪽 아래) */
+.buddy .cloud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 170px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px 9px 9px 3px;
+  background: var(--card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  color: var(--text-2);
+  font: 500 11px/16px var(--font);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.buddy .cloud span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buddy .zzz {
+  position: absolute;
+  left: 4px;
+  top: calc(-1 * var(--h) + 8px);
+  color: #8e8ef0;
+  font: 600 12px var(--font);
+}
+.buddy .zzz b {
+  position: absolute;
+  opacity: 0;
+}
+.buddy .zzz b:nth-child(3) {
+  font-size: 15px;
+}
+
+/* 사용자를 부를 때: 말풍선 + 발밑 빛이 두근두근 */
+.buddy .call {
+  position: absolute;
+  left: 0;
+  top: calc(-1 * var(--h) - 22px);
+  display: none;
+  max-width: 220px;
+  padding: 7px 11px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  pointer-events: none;
+}
+.buddy .call::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  transform: translateX(-50%) rotate(45deg);
+}
+.buddy .call b {
+  display: block;
+  font: 600 13px/1.3 var(--font);
+  white-space: nowrap;
+}
+.buddy .call span {
+  display: block;
+  overflow: hidden;
+  color: var(--text-2);
+  font: 11px/1.4 var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.buddy.calling .call {
+  display: block;
+}
+/* 부르는 동안엔 발밑 그림자도 없앤다 (말풍선과 몸짓만) */
+.buddy.calling .aura {
+  display: none;
+}
+.buddy.calling .cloud {
+  display: none !important;
+}
+
+
+/* ── 화이트보드 (치수는 board.js 상수와 맞춤) ─────────── */
+.wb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  cursor: grab;
+  transition:
+    width 0.22s ease,
+    height 0.22s ease;
+}
+.wb.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+.wb-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  font: 600 11.5px/1 var(--font);
+  white-space: nowrap;
+}
+.wb-head i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--team);
+}
+.wb-head .who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-head .st {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: 11px;
+}
+.wb-head .st::before,
+.chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rest);
+}
+[data-mode='work']::before,
+[data-mode='thinking']::before,
+[data-mode='talking']::before,
+[data-mode='listening']::before,
+[data-mode='supervise']::before {
+  background: var(--busy);
+}
+[data-mode='waiting']::before,
+[data-mode='calling']::before {
+  background: var(--wait);
+}
+[data-mode='done']::before,
+[data-mode='returning']::before {
+  background: var(--done);
+}
+[data-mode='calling-done']::before {
+  background: var(--done);
+}
+[data-mode='sleep']::before {
+  background: var(--sleep);
+}
+
+.wb-fold {
+  all: unset;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: -6px;
+  border-radius: 5px;
+  color: var(--text-3);
+  font: 500 13px/1 var(--font);
+  cursor: pointer;
+}
+.wb-fold:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.wb.collapsed .wb-head {
+  border-bottom-color: transparent;
+}
+.wb.collapsed .wb-body,
+.wb.collapsed .wb-hist,
+.wb.collapsed .wb-subs,
+.wb.collapsed .wb-resize {
+  display: none;
+}
+.wb-body {
+  position: relative;
+  padding: 8px 12px 0;
+}
+.wb .txt {
+  white-space: nowrap;
+}
+.wb .l1 {
+  min-height: 18px;
+  font: 600 13px/18px var(--font);
+}
+.wb .l2 div {
+  color: var(--text-2);
+  font: 12px/17px var(--font);
+}
+/* 이 보드에 붙은 서브에이전트들: 한 줄씩 (치수는 board.js SUB_* 와 맞춤) */
+.wb-subs {
+  margin: 6px 12px 0;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.wb-subs:empty {
+  display: none;
+}
+.wb-subs div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  overflow: hidden;
+  font: 11.5px/18px var(--font);
+  color: var(--text-2);
+}
+.wb-subs i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.wb-subs b {
+  flex: none;
+  font: 600 11px/18px var(--font);
+  color: var(--text);
+}
+.wb-subs span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-hist {
+  padding: 6px 12px 0;
+  color: var(--text-3);
+  font: 11px/16px var(--font);
+  white-space: nowrap;
+}
+.wb-hist:empty {
+  display: none;
+}
+.wb-hist div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-resize {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  width: 10px;
+  height: 10px;
+  border-left: 2px solid var(--text-3);
+  border-bottom: 2px solid var(--text-3);
+  border-bottom-left-radius: 3px;
+  opacity: 0;
+  cursor: nesw-resize;
+  transition: opacity 0.15s;
+}
+.wb:hover .wb-resize {
+  opacity: 0.7;
+}
+
+/* ── 효과 ───────────────────────────────────── */
+.fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.fx.bit {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+}
+.fx.star {
+  font: 14px var(--font);
+}
+.fx.pop {
+  font-size: 18px;
+}
+.fx.flyer {
+  font-size: 18px;
+}
+.fx.dust {
+  width: 9px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* ── 관계도 패널 ─────────────────────────────── */
+#panel {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  width: 330px;
+  max-height: 60vh;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+.pn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 8px 14px;
+  cursor: grab;
+}
+.pn-head b {
+  flex: 1;
+  font: 600 13px var(--font);
+  white-space: nowrap;
+}
+.pn-pin,
+.pn-gather {
+  all: unset;
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text-2);
+  font: 500 11px/1.2 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pn-pin:hover,
+.pn-gather:hover {
+  background: var(--line);
+  color: var(--text);
+}
+.pn-pin.on,
+.pn-pin.on:hover {
+  background: var(--done);
+  color: #fff;
+}
+.pn-fold {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--text-3);
+  font: 500 14px/1 var(--font);
+  cursor: pointer;
+}
+.pn-fold:hover,
+.pn-menu:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.pn-menu {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--text-3);
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+.pn-menu[hidden] {
+  display: none;
+}
+#panel.collapsed .pn-tree {
+  display: none;
+}
+#panel.collapsed .pn-head {
+  padding-bottom: 12px;
+}
+.pn-tree {
+  padding: 0 6px 8px;
+  overflow-y: auto;
+}
+.pn-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px 6px calc(8px + var(--depth) * 18px);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.pn-row:hover {
+  background: var(--hover);
+}
+.pn-row .branch {
+  display: none;
+}
+.pn-row.sub .branch {
+  position: absolute;
+  left: calc(var(--depth) * 18px - 4px);
+  top: 0;
+  display: block;
+  width: 8px;
+  height: 50%;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+}
+.av {
+  flex: none;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--avatar);
+}
+.av canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+.pn-row .info {
+  flex: 1;
+  min-width: 0;
+}
+.pn-row .nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pn-row .nm::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--team);
+}
+.pn-row .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 500 12.5px/1.3 var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.pn-row .act {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-empty {
+  padding: 8px 10px 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ── 상세 카드 ───────────────────────────────── */
+#card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 300px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+.cd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cd-head .av {
+  border-radius: 10px;
+}
+.cd-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cd-title b {
+  overflow: hidden;
+  font: 600 14px/1.3 var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-title span {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.cd-close {
+  all: unset;
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-3);
+  font: 400 16px/1 var(--font);
+  cursor: pointer;
+}
+.cd-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.cd-open {
+  all: unset;
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-2);
+  font: 500 11.5px/22px var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cd-open:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.cd-rows {
+  display: grid;
+  grid-template-columns: auto 1fr; /* 이름 칸은 언어마다 가장 긴 이름에 맞춘다 */
+  gap: 5px 10px;
+}
+.cd-row {
+  display: contents;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.cd-row .k {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.cd-row .v {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  word-break: break-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.cd-sub {
+  margin: 12px 0 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font: 600 11px var(--font);
+}
+.cd-item {
+  display: flex;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.cd-item .tx {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-item .tm {
+  flex: none;
+  color: var(--text-3);
+  font-size: 11px;
+}

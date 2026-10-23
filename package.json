@@ -1,0 +1,39 @@
+{
+  "name": "claude-buddy",
+  "version": "0.1.0",
+  "description": "macOS desktop pet that shows your Claude Code sessions and subagents as pixel animals",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "anthropic",
+    "ai-agents",
+    "subagents",
+    "desktop-pet",
+    "macos",
+    "electron",
+    "pixel-art",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "author": "junyeongCHOI",
+  "homepage": "https://github.com/junyeongCHOI/claude-buddy#readme",
+  "bugs": "https://github.com/junyeongCHOI/claude-buddy/issues",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/junyeongCHOI/claude-buddy.git"
+  },
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "node scripts/build-native.js && electron .",
+    "demo": "node scripts/build-native.js && electron . --demo",
+    "smoke": "node scripts/build-native.js && electron . --demo --smoke",
+    "build:native": "node scripts/build-native.js",
+    "preview": "node scripts/preview-server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0"
+  }
+}

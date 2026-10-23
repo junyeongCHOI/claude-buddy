@@ -1,0 +1,12 @@
+node_modules/
+native/bin/
+.DS_Store
+*.log
+assets/raw/
+assets/raw-rejected/
+
+# personal Claude Code setup stays local
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
